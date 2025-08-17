@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import bugsData from "../bugs.json"; // Auto-synced source file
 
 // Configurable API base: use env, else localhost in dev, else same-origin
 const API_BASE = import.meta.env.VITE_BUGS_API_BASE || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'https://localhost:33123' : '');
 function apiUrl(path) { return `${API_BASE}${path}`; }
 const SYNC_DELAY_MS = Number(import.meta.env.VITE_BUGS_SYNC_DELAY_MS) || 10000; // default 10s
+const API_HEADERS = { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' };
 
 // Exotics Café Bugs Board: front‑end only issue board that ingests JSON, edits it in place, and lets you export.
 // No backend. Uses Tailwind. Works entirely in browser with localStorage persistence.
@@ -39,7 +39,8 @@ const MAINTAINER_KEY = 'changeme'; // TODO: set this to a non-obvious phrase bef
 
 const DEFAULT_STATUSES = ["Backlog", "Todo", "In Progress", "Done", "Archived"]; // canonical ordering
 
-const SAMPLE_ISSUES = [];
+// const SAMPLE_ISSUES = [];
+const INITIAL_ISSUES = [];
 
 function uid(prefix = "id") {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
@@ -222,22 +223,6 @@ function Column({ name, issues, onDropIssue, onOpenIssue }) {
   );
 }
 
-// Merge helper: keep local edits, add new file issues
-function mergeFileIntoLocal(localIssues, fileIssues) {
-  const localMap = new Map(localIssues.map(i => [i.id, i]));
-  const merged = [...localIssues];
-  for (const f of fileIssues) {
-    if (localMap.has(f.id)) {
-      const existing = localMap.get(f.id);
-      const idx = merged.findIndex(i => i.id === f.id);
-      merged[idx] = { ...f, ...existing }; // local changes win
-    } else {
-      merged.push(f);
-    }
-  }
-  return merged;
-}
-
 // Helper to append only new issues by id
 function appendNewIssues(prev, incoming) {
   const existingIds = new Set(prev.map(i => i.id));
@@ -246,43 +231,19 @@ function appendNewIssues(prev, incoming) {
   return [...prev, ...additions];
 }
 
-// Backend sync helper
-async function pushIssues(issues) {
-  try {
-    await fetch(apiUrl('/bugsapi'), {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ issues })
-    });
-  } catch(e) { console.error('Failed to push issues', e); }
-}
-
 export default function App() {
   // Force dark mode once on mount
   useEffect(()=>{ document.documentElement.classList.add('dark'); }, []);
 
-  const [issues, setIssues] = useLocalStorageState(LS_KEY, (() => {
-    try { const raw = localStorage.getItem(LS_KEY); if (raw) return JSON.parse(raw); } catch {}
-    return bugsData.issues || SAMPLE_ISSUES;
-  })());
-  const [fileVersion, setFileVersion] = useState(Date.now());
+  const [issues, setIssues] = useState(INITIAL_ISSUES);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
 
-  // Hot Module Replacement: merge instead of overwrite
-  if (import.meta.hot) {
-    import.meta.hot.accept("../bugs.json", (mod) => {
-      const fresh = mod.default?.issues || [];
-      setIssues(prev => mergeFileIntoLocal(prev, fresh));
-      setFileVersion(Date.now());
-    });
-  }
-
-  // Re-seed ONLY if nothing stored (e.g., localStorage cleared)
-  useEffect(() => {
-    if (!issues || issues.length === 0) {
-      setIssues(bugsData.issues || []);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fileVersion]);
+  const pushIssues = async (list) => {
+    try { setSyncing(true); await fetch(apiUrl('/bugsapi'), { method: 'PUT', headers: API_HEADERS, body: JSON.stringify({ issues: list }) }); }
+    catch(e) { console.error('Failed to push issues', e); }
+    finally { setSyncing(false); }
+  };
 
   const [selected, setSelected] = useState(null);
   // replaced generic query with focused search term
@@ -345,7 +306,8 @@ export default function App() {
       setDraft(d => d ? { ...d, ...patch, updatedAt: new Date().toISOString() } : d);
       return;
     }
-    setIssues(prev => prev.map(i => i.id === id ? { ...i, ...patch, updatedAt: new Date().toISOString() } : i));
+    // setIssues(prev => prev.map(i => i.id === id ? { ...i, ...patch, updatedAt: new Date().toISOString() } : i));
+    setIssues(prev => { const next = prev.map(i => i.id === id ? { ...i, ...patch, updatedAt: new Date().toISOString() } : i); pushIssues(next); return next; });
   };
 
   const moveIssueTo = (id, status) => {
@@ -380,7 +342,7 @@ export default function App() {
   const saveDraft = () => {
     if (!draft) return;
     if (!draft.title.trim()) { alert('Title is required'); return; }
-    setIssues(prev => [draft, ...prev]);
+    setIssues(prev => { const next = [draft, ...prev]; pushIssues(next); return next; });
     setSelected(draft);
     setDraft(null);
   };
@@ -390,7 +352,7 @@ export default function App() {
     const issue = issues.find(i => i.id === id);
     const canDelete = role === 'maintainer' || issue?.createdByVisitor;
     if (!canDelete) return alert('Only maintainers can delete existing issues.');
-    setIssues(prev => prev.filter(i => i.id !== id));
+    setIssues(prev => { const next = prev.filter(i => i.id !== id); pushIssues(next); return next; });
     if (selected?.id === id) setSelected(null);
   };
 
@@ -398,14 +360,14 @@ export default function App() {
     try {
       const text = await file.text();
       const incoming = normalizeIncomingJSON(text);
-      setIssues(prev => appendNewIssues(prev, incoming));
+      setIssues(prev => { const next = appendNewIssues(prev, incoming); pushIssues(next); return next; });
     } catch (e) { alert("Failed to import JSON: " + e.message); }
   };
 
   const handlePasteJSON = (text) => {
     try {
       const incoming = normalizeIncomingJSON(text);
-      setIssues(prev => appendNewIssues(prev, incoming));
+      setIssues(prev => { const next = appendNewIssues(prev, incoming); pushIssues(next); return next; });
       setPasteOpen(false);
     } catch (e) { alert("Invalid JSON"); }
   };
@@ -418,7 +380,7 @@ export default function App() {
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       const data = await res.json();
       const incoming = normalizeIncomingJSON(data);
-      setIssues(prev => appendNewIssues(prev, incoming));
+      setIssues(prev => { const next = appendNewIssues(prev, incoming); pushIssues(next); return next; });
       setUrlOpen(false);
     } catch (e) { alert("Failed to fetch JSON: " + e.message); }
   };
@@ -429,15 +391,12 @@ export default function App() {
     try {
       const parsed = JSON.parse(rawJSON);
       const incoming = normalizeIncomingJSON(parsed);
-      setIssues(prev => appendNewIssues(prev, incoming));
+      setIssues(prev => { const next = appendNewIssues(prev, incoming); pushIssues(next); return next; });
     } catch (e) { alert("Invalid JSON: " + e.message); }
   };
 
   const resetToFile = () => {
-    if (confirm('Reset board to bugs.json? This discards local changes.')) {
-      const next = bugsData.issues || [];
-      setIssues(next);
-    }
+    // Removed: no local file reset
   };
 
   const handleMaintainerLogin = (e) => {
@@ -452,18 +411,17 @@ export default function App() {
   const logoutMaintainer = () => setRole('guest');
 
   useEffect(() => {
-    // Initial fetch from backend to get shared issues (overrides local if newer)
+    // Initial fetch from backend to get shared issues
     (async () => {
       try {
-        const res = await fetch(apiUrl('/bugsapi'));
+        const res = await fetch(apiUrl('/bugsapi'), { headers: { 'ngrok-skip-browser-warning': '1' } });
         if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
         const data = await res.json();
-        if (Array.isArray(data.issues)) {
-          setIssues(prev => prev && prev.length ? prev : data.issues);
-        }
+        if (Array.isArray(data.issues)) setIssues(data.issues);
       } catch(e) { console.warn('Bugs API initial fetch failed', e); }
+      finally { setLoading(false); }
     })();
-  }, [setIssues]);
+  }, []);
 
   // Persist to backend after configurable delay; flush on unload/hidden
   const syncTimerRef = useRef(null);
@@ -528,11 +486,12 @@ export default function App() {
             </div>
             {/* Actions row */}
             <div className="flex flex-wrap gap-2 items-center w-full lg:w-auto [&>*]:shrink-0">
+              <span className="text-xs text-slate-500 dark:text-slate-400 mr-2">{loading? 'Loading…' : syncing? 'Syncing…' : ''}</span>
               <IconButton title="Add issue" onClick={addIssue}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
                 <span>New</span>
               </IconButton>
-              {role === 'maintainer' && (
+              {role === 'maintainer' && false && (
                 <IconButton title="Reset to bugs.json" onClick={resetToFile}>♻️<span>Reset</span></IconButton>
               )}
               <label className="inline-flex items-center gap-2 cursor-pointer">
@@ -559,11 +518,14 @@ export default function App() {
         </div>
 
         {/* Empty state helper */}
-        {issues.length === 0 && (
+        {issues.length === 0 && !loading && (
           <div className="mt-10 mx-auto max-w-xl text-center text-slate-300">
             <p className="text-lg">No issues loaded.</p>
             <p className="mt-2">Use <strong>Import</strong> / <strong>Paste</strong> / <strong>From URL</strong> or click <strong>New</strong> to start.</p>
           </div>
+        )}
+        {loading && (
+          <div className="mt-10 mx-auto max-w-xl text-center text-slate-400 text-sm">Loading issues…</div>
         )}
 
         {/* Raw JSON panel */}
