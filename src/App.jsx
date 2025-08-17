@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import bugsData from "../bugs.json"; // Auto-synced source file
 
+// Configurable API base: use env, else localhost in dev, else same-origin
+const API_BASE = import.meta.env.VITE_BUGS_API_BASE || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'https://localhost:33123' : '');
+function apiUrl(path) { return `${API_BASE}${path}`; }
+const SYNC_DELAY_MS = Number(import.meta.env.VITE_BUGS_SYNC_DELAY_MS) || 10000; // default 10s
+
 // Exotics Café Bugs Board: front‑end only issue board that ingests JSON, edits it in place, and lets you export.
 // No backend. Uses Tailwind. Works entirely in browser with localStorage persistence.
 // Key features:
@@ -34,56 +39,7 @@ const MAINTAINER_KEY = 'changeme'; // TODO: set this to a non-obvious phrase bef
 
 const DEFAULT_STATUSES = ["Backlog", "Todo", "In Progress", "Done", "Archived"]; // canonical ordering
 
-const SAMPLE_ISSUES = [
-  {
-    id: "ISSUE-1",
-    title: "Price formatting unclear",
-    description: "Show K/M/B for large numbers and thousands separators.",
-    status: "Todo",
-    priority: "P1",
-    tags: ["UX"],
-    assignee: "nago",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    comments: []
-  },
-  {
-    id: "ISSUE-2",
-    title: "Start time defaults to now",
-    description: "Auto-set start time to now; make end time optional.",
-    status: "In Progress",
-    priority: "P1",
-    tags: ["Forms", "Listings"],
-    assignee: "",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    comments: []
-  },
-  {
-    id: "ISSUE-3",
-    title: "Mobile layout pass",
-    description: "Clean spacing, responsive cards, improve header nav.",
-    status: "Backlog",
-    priority: "P2",
-    tags: ["Responsive"],
-    assignee: "",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    comments: []
-  },
-  {
-    id: "ISSUE-4",
-    title: "Login: passwordless via Discord code",
-    description: "Replace password field with one-time code bot flow. Add trust copy.",
-    status: "Backlog",
-    priority: "P0",
-    tags: ["Auth", "Trust"],
-    assignee: "",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    comments: []
-  }
-];
+const SAMPLE_ISSUES = [];
 
 function uid(prefix = "id") {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
@@ -290,6 +246,17 @@ function appendNewIssues(prev, incoming) {
   return [...prev, ...additions];
 }
 
+// Backend sync helper
+async function pushIssues(issues) {
+  try {
+    await fetch(apiUrl('/bugsapi'), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ issues })
+    });
+  } catch(e) { console.error('Failed to push issues', e); }
+}
+
 export default function App() {
   // Force dark mode once on mount
   useEffect(()=>{ document.documentElement.classList.add('dark'); }, []);
@@ -374,7 +341,6 @@ export default function App() {
   }, [filtered, allStatuses]);
 
   const updateIssue = (id, patch) => {
-    // If editing an unsaved draft, mutate draft instead of persisted issues
     if (draft && draft.id === id) {
       setDraft(d => d ? { ...d, ...patch, updatedAt: new Date().toISOString() } : d);
       return;
@@ -383,11 +349,10 @@ export default function App() {
   };
 
   const moveIssueTo = (id, status) => {
-    // Prevent moving unsaved draft via DnD
     if (draft && draft.id === id) return;
     const issue = issues.find(i => i.id === id);
     const canEdit = role === 'maintainer' || issue?.createdByVisitor;
-    if (!canEdit) return; // block unauthorized move
+    if (!canEdit) return;
     updateIssue(id, { status });
   };
 
@@ -416,15 +381,12 @@ export default function App() {
     if (!draft) return;
     if (!draft.title.trim()) { alert('Title is required'); return; }
     setIssues(prev => [draft, ...prev]);
-    setSelected(draft); // convert to persisted selection
+    setSelected(draft);
     setDraft(null);
   };
 
   const deleteIssue = (id) => {
-    if (draft && draft.id === id) { // deleting an unsaved draft
-      setDraft(null);
-      return;
-    }
+    if (draft && draft.id === id) { setDraft(null); return; }
     const issue = issues.find(i => i.id === id);
     const canDelete = role === 'maintainer' || issue?.createdByVisitor;
     if (!canDelete) return alert('Only maintainers can delete existing issues.');
@@ -437,9 +399,7 @@ export default function App() {
       const text = await file.text();
       const incoming = normalizeIncomingJSON(text);
       setIssues(prev => appendNewIssues(prev, incoming));
-    } catch (e) {
-      alert("Failed to import JSON: " + e.message);
-    }
+    } catch (e) { alert("Failed to import JSON: " + e.message); }
   };
 
   const handlePasteJSON = (text) => {
@@ -447,9 +407,7 @@ export default function App() {
       const incoming = normalizeIncomingJSON(text);
       setIssues(prev => appendNewIssues(prev, incoming));
       setPasteOpen(false);
-    } catch (e) {
-      alert("Invalid JSON");
-    }
+    } catch (e) { alert("Invalid JSON"); }
   };
 
   const handleFetchURL = async () => {
@@ -462,9 +420,7 @@ export default function App() {
       const incoming = normalizeIncomingJSON(data);
       setIssues(prev => appendNewIssues(prev, incoming));
       setUrlOpen(false);
-    } catch (e) {
-      alert("Failed to fetch JSON: " + e.message);
-    }
+    } catch (e) { alert("Failed to fetch JSON: " + e.message); }
   };
 
   const [rawJSON, setRawJSON] = useState("");
@@ -479,7 +435,8 @@ export default function App() {
 
   const resetToFile = () => {
     if (confirm('Reset board to bugs.json? This discards local changes.')) {
-      setIssues(bugsData.issues || []);
+      const next = bugsData.issues || [];
+      setIssues(next);
     }
   };
 
@@ -493,6 +450,36 @@ export default function App() {
     }
   };
   const logoutMaintainer = () => setRole('guest');
+
+  useEffect(() => {
+    // Initial fetch from backend to get shared issues (overrides local if newer)
+    (async () => {
+      try {
+        const res = await fetch(apiUrl('/bugsapi'));
+        if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+        const data = await res.json();
+        if (Array.isArray(data.issues)) {
+          setIssues(prev => prev && prev.length ? prev : data.issues);
+        }
+      } catch(e) { console.warn('Bugs API initial fetch failed', e); }
+    })();
+  }, [setIssues]);
+
+  // Persist to backend after configurable delay; flush on unload/hidden
+  const syncTimerRef = useRef(null);
+  useEffect(() => {
+    if (!issues) return;
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => { pushIssues(issues); }, SYNC_DELAY_MS);
+    return () => { if (syncTimerRef.current) clearTimeout(syncTimerRef.current); };
+  }, [issues]);
+  useEffect(() => {
+    const flush = () => pushIssues(issues);
+    window.addEventListener('beforeunload', flush);
+    const vis = () => { if (document.visibilityState === 'hidden') flush(); };
+    document.addEventListener('visibilitychange', vis);
+    return () => { window.removeEventListener('beforeunload', flush); document.removeEventListener('visibilitychange', vis); };
+  }, [issues]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors">

@@ -6,7 +6,15 @@
       "description": "No clear indication of successful login or current user; add explicit success, avatar/name, and header state.",
       "status": "Todo",
       "priority": "P1",
-      "tags": ["Auth","UX"]
+      "assignee": "",
+      "tags": [
+        "Auth",
+        "UX"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-002",
@@ -14,7 +22,16 @@
       "description": "Some pages show auctions pre-login while others block. Standardize gating and show clear prompts.",
       "status": "Todo",
       "priority": "P1",
-      "tags": ["Auth","Routing","UX"]
+      "assignee": "",
+      "tags": [
+        "Auth",
+        "Routing",
+        "UX"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-003",
@@ -22,7 +39,15 @@
       "description": "Password input appears despite plan for one-time Discord code; contradictory and confusing.",
       "status": "Todo",
       "priority": "P2",
-      "tags": ["Auth","UI"]
+      "assignee": "",
+      "tags": [
+        "Auth",
+        "UI"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-004",
@@ -30,7 +55,16 @@
       "description": "Double-clicking register can create a user then show 'already exists' with no helpful recovery.",
       "status": "Todo",
       "priority": "P1",
-      "tags": ["Auth","Validation","UX"]
+      "assignee": "",
+      "tags": [
+        "Auth",
+        "Validation",
+        "UX"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-005",
@@ -38,7 +72,15 @@
       "description": "Any password is accepted for login in development; ensure it cannot leak to production and is clearly labeled.",
       "status": "Backlog",
       "priority": "P0",
-      "tags": ["Security","Auth"]
+      "assignee": "",
+      "tags": [
+        "Security",
+        "Auth"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-006",
@@ -46,7 +88,16 @@
       "description": "No uptime/maintenance error surfaced; users just 'can't login'.",
       "status": "Todo",
       "priority": "P1",
-      "tags": ["Admin","Stability","UX"]
+      "assignee": "",
+      "tags": [
+        "Admin",
+        "Stability",
+        "UX"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-007",
@@ -54,7 +105,16 @@
       "description": "Start time often mis-set; no validation toast and no 'Expected/Queued' dashboard state.",
       "status": "Todo",
       "priority": "P0",
-      "tags": ["Listings","Forms","UX"]
+      "assignee": "",
+      "tags": [
+        "Listings",
+        "Forms",
+        "UX"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-008",
@@ -62,7 +122,16 @@
       "description": "Users 'mess up the date' easily; unclear timezone and defaults.",
       "status": "Todo",
       "priority": "P1",
-      "tags": ["Forms","DateTime","UX"]
+      "assignee": "",
+      "tags": [
+        "Forms",
+        "DateTime",
+        "UX"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-009",
@@ -70,7 +139,15 @@
       "description": "Creation blocked when end time omitted; should be optional.",
       "status": "Todo",
       "priority": "P1",
-      "tags": ["Listings","Validation"]
+      "assignee": "",
+      "tags": [
+        "Listings",
+        "Validation"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-010",
@@ -78,7 +155,15 @@
       "description": "Short but valid descriptions are rejected (e.g., 'this sheep is black'); improve rule and error message.",
       "status": "Todo",
       "priority": "P2",
-      "tags": ["Validation","Listings"]
+      "assignee": "",
+      "tags": [
+        "Validation",
+        "Listings"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-011",
@@ -86,7 +171,16 @@
       "description": "Newlines ignored; preserve line breaks/paragraphs.",
       "status": "Todo",
       "priority": "P1",
-      "tags": ["Rendering","CSS","Listings"]
+      "assignee": "",
+      "tags": [
+        "Rendering",
+        "CSS",
+        "Listings"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-012",
@@ -94,7 +188,16 @@
       "description": "Long description column causes horizontal overflow; edit/delete controls move off-canvas.",
       "status": "Todo",
       "priority": "P1",
-      "tags": ["Layout","Overflow","Listings"]
+      "assignee": "",
+      "tags": [
+        "Layout",
+        "Overflow",
+        "Listings"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-013",
@@ -102,7 +205,16 @@
       "description": "Forces users to scroll far right to find controls; clamp or wrap text and keep actions sticky.",
       "status": "Todo",
       "priority": "P2",
-      "tags": ["Layout","CSS","Listings"]
+      "assignee": "",
+      "tags": [
+        "Layout",
+        "CSS",
+        "Listings"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-014",
@@ -110,7 +222,15 @@
       "description": "Raw numbers are confusing; display K/M/B or locale separators.",
       "status": "Todo",
       "priority": "P1",
-      "tags": ["UI","Numbers"]
+      "assignee": "",
+      "tags": [
+        "UI",
+        "Numbers"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-015",
@@ -118,7 +238,16 @@
       "description": "Users expect an 'Add Balance' control and can't find it; either surface or indicate 'not available'.",
       "status": "Backlog",
       "priority": "P2",
-      "tags": ["Payments","Discoverability","UX"]
+      "assignee": "",
+      "tags": [
+        "Payments",
+        "Discoverability",
+        "UX"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-016",
@@ -126,7 +255,16 @@
       "description": "Uploading images toggles Light/Dark mode unexpectedly.",
       "status": "Todo",
       "priority": "P0",
-      "tags": ["Images","Theme","UI"]
+      "assignee": "",
+      "tags": [
+        "Images",
+        "Theme",
+        "UI"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-017",
@@ -134,7 +272,15 @@
       "description": "After a broken upload, 'Select cover' does nothing until image is removed/readded.",
       "status": "Todo",
       "priority": "P1",
-      "tags": ["Images","State"]
+      "assignee": "",
+      "tags": [
+        "Images",
+        "State"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-018",
@@ -142,7 +288,15 @@
       "description": "Failed uploads leave a bad preview with no fallback indicator.",
       "status": "Todo",
       "priority": "P2",
-      "tags": ["Images","UX"]
+      "assignee": "",
+      "tags": [
+        "Images",
+        "UX"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-019",
@@ -150,7 +304,16 @@
       "description": "Reordering or swapping photos sometimes requires multiple attempts; racey state updates.",
       "status": "Backlog",
       "priority": "P2",
-      "tags": ["Images","State","UX"]
+      "assignee": "",
+      "tags": [
+        "Images",
+        "State",
+        "UX"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-020",
@@ -158,7 +321,16 @@
       "description": "Messaging is visually 'under the rug'; placement and styling hide it.",
       "status": "Backlog",
       "priority": "P2",
-      "tags": ["Messaging","Navigation","UI"]
+      "assignee": "",
+      "tags": [
+        "Messaging",
+        "Navigation",
+        "UI"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-021",
@@ -166,7 +338,15 @@
       "description": "First page typography looks too thick versus the rest of the site.",
       "status": "Backlog",
       "priority": "P2",
-      "tags": ["Typography","UI"]
+      "assignee": "",
+      "tags": [
+        "Typography",
+        "UI"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-022",
@@ -174,7 +354,15 @@
       "description": "Information density and spacing make it feel 'clogged'.",
       "status": "Backlog",
       "priority": "P2",
-      "tags": ["Layout","UX"]
+      "assignee": "",
+      "tags": [
+        "Layout",
+        "UX"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-023",
@@ -182,7 +370,15 @@
       "description": "Tiles are static; expected hover/expand behavior is missing.",
       "status": "Backlog",
       "priority": "P2",
-      "tags": ["UI","Interactions"]
+      "assignee": "",
+      "tags": [
+        "UI",
+        "Interactions"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-024",
@@ -190,7 +386,16 @@
       "description": "Header, cards, and forms render poorly on mobile sizes.",
       "status": "Todo",
       "priority": "P1",
-      "tags": ["Responsive","Mobile","UI"]
+      "assignee": "",
+      "tags": [
+        "Responsive",
+        "Mobile",
+        "UI"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-025",
@@ -198,7 +403,15 @@
       "description": "Needs spacing and layout QA at ultrawide/2K resolutions.",
       "status": "Backlog",
       "priority": "P3",
-      "tags": ["Responsive","Layout"]
+      "assignee": "",
+      "tags": [
+        "Responsive",
+        "Layout"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-026",
@@ -206,7 +419,15 @@
       "description": "Admin UI elements don’t line up; visual glitches reported.",
       "status": "Backlog",
       "priority": "P2",
-      "tags": ["Admin","UI"]
+      "assignee": "",
+      "tags": [
+        "Admin",
+        "UI"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-027",
@@ -214,7 +435,16 @@
       "description": "UI implies all sellers need approval though it should be selective; confusing state.",
       "status": "Todo",
       "priority": "P1",
-      "tags": ["Admin","Policy","UX"]
+      "assignee": "",
+      "tags": [
+        "Admin",
+        "Policy",
+        "UX"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
     },
     {
       "id": "BUG-028",
@@ -222,7 +452,353 @@
       "description": "No visible guidance like 'Don’t use your MC password' → users are skeptical.",
       "status": "Todo",
       "priority": "P2",
-      "tags": ["Trust","Auth","Content"]
+      "assignee": "",
+      "tags": [
+        "Trust",
+        "Auth",
+        "Content"
+      ],
+      "createdAt": "2025-08-17T14:12:10.470Z",
+      "updatedAt": "2025-08-17T14:12:10.470Z",
+      "comments": [],
+      "createdByVisitor": false
+    },
+    {
+      "id": "FEAT-001",
+      "title": "Bid history on auction pages",
+      "description": "Show bid count and last 4 bid amounts (anonymized). Exclude BIN-only items.",
+      "status": "Backlog",
+      "priority": "P1",
+      "assignee": "",
+      "tags": [
+        "Feature",
+        "Bids",
+        "UX"
+      ],
+      "createdAt": "2025-08-17T14:07:36.960Z",
+      "updatedAt": "2025-08-17T14:07:36.960Z",
+      "comments": [],
+      "createdByVisitor": false
+    },
+    {
+      "id": "FEAT-002",
+      "title": "Bid actions: retract / below BIN / with note",
+      "description": "Enable retracting bids; allow bids below BIN; optional short note (e.g., skin details).",
+      "status": "Backlog",
+      "priority": "P1",
+      "assignee": "",
+      "tags": [
+        "Feature",
+        "Bids"
+      ],
+      "createdAt": "2025-08-17T14:07:36.960Z",
+      "updatedAt": "2025-08-17T14:07:36.960Z",
+      "comments": [],
+      "createdByVisitor": false
+    },
+    {
+      "id": "FEAT-003",
+      "title": "Default start time = Now; end time optional",
+      "description": "On create listing, prefill start with 'now' and make end time optional.",
+      "status": "Todo",
+      "priority": "P0",
+      "assignee": "",
+      "tags": [
+        "Feature",
+        "Listings",
+        "Forms"
+      ],
+      "createdAt": "2025-08-17T14:07:36.960Z",
+      "updatedAt": "2025-08-17T14:07:36.960Z",
+      "comments": [],
+      "createdByVisitor": false
+    },
+    {
+      "id": "FEAT-004",
+      "title": "Archive ended/sold listings",
+      "description": "Auto-move ended/sold to an Archive view and make them searchable.",
+      "status": "Backlog",
+      "priority": "P1",
+      "assignee": "",
+      "tags": [
+        "Feature",
+        "Listings",
+        "Archive"
+      ],
+      "createdAt": "2025-08-17T14:07:36.960Z",
+      "updatedAt": "2025-08-17T14:07:36.960Z",
+      "comments": [],
+      "createdByVisitor": false
+    },
+    {
+      "id": "FEAT-005",
+      "title": "Inventory hover grid on item page",
+      "description": "Below description, show thumbnails with hover tooltips (enchanted/forged/recomb).",
+      "status": "Backlog",
+      "priority": "P2",
+      "assignee": "",
+      "tags": [
+        "Feature",
+        "UI",
+        "Listings"
+      ],
+      "createdAt": "2025-08-17T14:07:36.960Z",
+      "updatedAt": "2025-08-17T14:07:36.960Z",
+      "comments": [],
+      "createdByVisitor": false
+    },
+    {
+      "id": "FEAT-006",
+      "title": "Price formatting (K/M/B or separators)",
+      "description": "Display large values as 1.2M / 350K / 2.1B and/or with locale separators.",
+      "status": "Todo",
+      "priority": "P1",
+      "assignee": "",
+      "tags": [
+        "Feature",
+        "Numbers",
+        "UX"
+      ],
+      "createdAt": "2025-08-17T14:07:36.960Z",
+      "updatedAt": "2025-08-17T14:07:36.960Z",
+      "comments": [],
+      "createdByVisitor": false
+    },
+    {
+      "id": "FEAT-007",
+      "title": "Discord passwordless login",
+      "description": "One-time code via bot; remove password field from UI.",
+      "status": "Backlog",
+      "priority": "P0",
+      "assignee": "",
+      "tags": [
+        "Feature",
+        "Auth"
+      ],
+      "createdAt": "2025-08-17T14:07:36.960Z",
+      "updatedAt": "2025-08-17T14:07:36.960Z",
+      "comments": [],
+      "createdByVisitor": false
+    },
+    {
+      "id": "FEAT-008",
+      "title": "Trust copy on login",
+      "description": "Add 'Don’t reuse your MC password' and 'Not a rat' reassurance on auth screens.",
+      "status": "Backlog",
+      "priority": "P1",
+      "assignee": "",
+      "tags": [
+        "Feature",
+        "Trust",
+        "Content"
+      ],
+      "createdAt": "2025-08-17T14:07:36.960Z",
+      "updatedAt": "2025-08-17T14:07:36.960Z",
+      "comments": [],
+      "createdByVisitor": false
+    },
+    {
+      "id": "FEAT-009",
+      "title": "Consistent auth gating",
+      "description": "Decide and apply site-wide whether browsing requires login; show clear prompts.",
+      "status": "Todo",
+      "priority": "P1",
+      "assignee": "",
+      "tags": [
+        "Feature",
+        "Auth",
+        "Routing"
+      ],
+      "createdAt": "2025-08-17T14:07:36.960Z",
+      "updatedAt": "2025-08-17T14:07:36.960Z",
+      "comments": [],
+      "createdByVisitor": false
+    },
+    {
+      "id": "FEAT-010",
+      "title": "Open messaging to any user",
+      "description": "Allow starting conversations with any user (not only current/previous counterparties).",
+      "status": "Backlog",
+      "priority": "P2",
+      "assignee": "",
+      "tags": [
+        "Feature",
+        "Messaging"
+      ],
+      "createdAt": "2025-08-17T14:07:36.960Z",
+      "updatedAt": "2025-08-17T14:07:36.960Z",
+      "comments": [],
+      "createdByVisitor": false
+    },
+    {
+      "id": "FEAT-011",
+      "title": "Advanced filters: armor piece/type/hex",
+      "description": "Add filters for armor piece, armor type, and hex color; support future priority tiers.",
+      "status": "Backlog",
+      "priority": "P1",
+      "assignee": "",
+      "tags": [
+        "Feature",
+        "Filters",
+        "Discovery"
+      ],
+      "createdAt": "2025-08-17T14:07:36.960Z",
+      "updatedAt": "2025-08-17T14:07:36.960Z",
+      "comments": [],
+      "createdByVisitor": false
+    },
+    {
+      "id": "FEAT-012",
+      "title": "Auto-ban sync with eCafe",
+      "description": "On Discord verification, bot checks Café ban/tradeban and auto-blocks access if flagged.",
+      "status": "Backlog",
+      "priority": "P0",
+      "assignee": "",
+      "tags": [
+        "Feature",
+        "Moderation",
+        "eCafe"
+      ],
+      "createdAt": "2025-08-17T14:07:36.960Z",
+      "updatedAt": "2025-08-17T14:07:36.960Z",
+      "comments": [],
+      "createdByVisitor": false
+    },
+    {
+      "id": "FEAT-013",
+      "title": "Bid verification tiers",
+      "description": "Bidders are Pending by default; seller can verify. Auto-verify above rep threshold. Add filter for Verified-only bidders.",
+      "status": "Backlog",
+      "priority": "P1",
+      "assignee": "",
+      "tags": [
+        "Feature",
+        "Bids",
+        "Reputation"
+      ],
+      "createdAt": "2025-08-17T14:07:36.960Z",
+      "updatedAt": "2025-08-17T14:07:36.960Z",
+      "comments": [],
+      "createdByVisitor": false
+    },
+    {
+      "id": "FEAT-014",
+      "title": "Selective listing approval rules",
+      "description": "Only high-value categories/colors (e.g., Fairy/Crystal/Sup; specific hexes) require approval. Configurable in Admin.",
+      "status": "Backlog",
+      "priority": "P1",
+      "assignee": "",
+      "tags": [
+        "Feature",
+        "Admin",
+        "Policy"
+      ],
+      "createdAt": "2025-08-17T14:07:36.960Z",
+      "updatedAt": "2025-08-17T14:07:36.960Z",
+      "comments": [],
+      "createdByVisitor": false
+    },
+    {
+      "id": "FEAT-015",
+      "title": "Admin moderation tools",
+      "description": "Ban/unban users, remove auctions, manage approvals, view reports/audit log.",
+      "status": "Backlog",
+      "priority": "P0",
+      "assignee": "",
+      "tags": [
+        "Feature",
+        "Admin",
+        "Moderation"
+      ],
+      "createdAt": "2025-08-17T14:07:36.960Z",
+      "updatedAt": "2025-08-17T14:07:36.960Z",
+      "comments": [],
+      "createdByVisitor": false
+    },
+    {
+      "id": "FEAT-016",
+      "title": "Interactive sidebar tiles",
+      "description": "Tiles expand/animate on hover/active to improve affordance.",
+      "status": "Backlog",
+      "priority": "P3",
+      "assignee": "",
+      "tags": [
+        "Feature",
+        "UI",
+        "Interactions"
+      ],
+      "createdAt": "2025-08-17T14:07:36.960Z",
+      "updatedAt": "2025-08-17T14:07:36.960Z",
+      "comments": [],
+      "createdByVisitor": false
+    },
+    {
+      "id": "FEAT-017",
+      "title": "Mobile-first UI pass",
+      "description": "Refactor nav, cards, and forms for small screens; ensure touch targets and layout scale.",
+      "status": "Backlog",
+      "priority": "P1",
+      "assignee": "",
+      "tags": [
+        "Feature",
+        "Responsive",
+        "Mobile"
+      ],
+      "createdAt": "2025-08-17T14:07:36.960Z",
+      "updatedAt": "2025-08-17T14:07:36.960Z",
+      "comments": [],
+      "createdByVisitor": false
+    },
+    {
+      "id": "FEAT-018",
+      "title": "2560×1440 layout QA",
+      "description": "Tighten spacing/alignment for 2K/ultrawide. Test common breakpoints.",
+      "status": "Backlog",
+      "priority": "P3",
+      "assignee": "",
+      "tags": [
+        "Feature",
+        "Responsive",
+        "Layout"
+      ],
+      "createdAt": "2025-08-17T14:07:36.960Z",
+      "updatedAt": "2025-08-17T14:07:36.960Z",
+      "comments": [],
+      "createdByVisitor": false
+    },
+    {
+      "id": "FEAT-019",
+      "title": "Add Balance entry point",
+      "description": "Surface an 'Add Balance' control or clearly indicate 'Coming soon/disabled'.",
+      "status": "Backlog",
+      "priority": "P2",
+      "assignee": "",
+      "tags": [
+        "Feature",
+        "Payments",
+        "UX"
+      ],
+      "createdAt": "2025-08-17T14:07:36.960Z",
+      "updatedAt": "2025-08-17T14:07:36.960Z",
+      "comments": [],
+      "createdByVisitor": false
+    },
+    {
+      "id": "FEAT-020",
+      "title": "IRL marketplace separation",
+      "description": "Run IRL trades on a separate site/tab/server; share Discord SSO; keep coin marketplace isolated.",
+      "status": "Backlog",
+      "priority": "P0",
+      "assignee": "",
+      "tags": [
+        "Feature",
+        "Architecture",
+        "Policy"
+      ],
+      "createdAt": "2025-08-17T14:07:36.960Z",
+      "updatedAt": "2025-08-17T14:07:36.960Z",
+      "comments": [],
+      "createdByVisitor": false
     }
   ]
 }
