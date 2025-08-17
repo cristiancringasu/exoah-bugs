@@ -1,0 +1,228 @@
+{
+  "issues": [
+    {
+      "id": "BUG-001",
+      "title": "Confusing login state",
+      "description": "No clear indication of successful login or current user; add explicit success, avatar/name, and header state.",
+      "status": "Todo",
+      "priority": "P1",
+      "tags": ["Auth","UX"]
+    },
+    {
+      "id": "BUG-002",
+      "title": "Inconsistent auth gating",
+      "description": "Some pages show auctions pre-login while others block. Standardize gating and show clear prompts.",
+      "status": "Todo",
+      "priority": "P1",
+      "tags": ["Auth","Routing","UX"]
+    },
+    {
+      "id": "BUG-003",
+      "title": "Password field present in passwordless flow",
+      "description": "Password input appears despite plan for one-time Discord code; contradictory and confusing.",
+      "status": "Todo",
+      "priority": "P2",
+      "tags": ["Auth","UI"]
+    },
+    {
+      "id": "BUG-004",
+      "title": "Register double-submit creates duplicates",
+      "description": "Double-clicking register can create a user then show 'already exists' with no helpful recovery.",
+      "status": "Todo",
+      "priority": "P1",
+      "tags": ["Auth","Validation","UX"]
+    },
+    {
+      "id": "BUG-005",
+      "title": "Dev-mode accepts any password",
+      "description": "Any password is accepted for login in development; ensure it cannot leak to production and is clearly labeled.",
+      "status": "Backlog",
+      "priority": "P0",
+      "tags": ["Security","Auth"]
+    },
+    {
+      "id": "BUG-006",
+      "title": "Admin/demo login fails silently when backend is down",
+      "description": "No uptime/maintenance error surfaced; users just 'can't login'.",
+      "status": "Todo",
+      "priority": "P1",
+      "tags": ["Admin","Stability","UX"]
+    },
+    {
+      "id": "BUG-007",
+      "title": "Listing disappears after creation",
+      "description": "Start time often mis-set; no validation toast and no 'Expected/Queued' dashboard state.",
+      "status": "Todo",
+      "priority": "P0",
+      "tags": ["Listings","Forms","UX"]
+    },
+    {
+      "id": "BUG-008",
+      "title": "Date/time picker friction & timezone ambiguity",
+      "description": "Users 'mess up the date' easily; unclear timezone and defaults.",
+      "status": "Todo",
+      "priority": "P1",
+      "tags": ["Forms","DateTime","UX"]
+    },
+    {
+      "id": "BUG-009",
+      "title": "End time incorrectly required",
+      "description": "Creation blocked when end time omitted; should be optional.",
+      "status": "Todo",
+      "priority": "P1",
+      "tags": ["Listings","Validation"]
+    },
+    {
+      "id": "BUG-010",
+      "title": "Description min-length too strict",
+      "description": "Short but valid descriptions are rejected (e.g., 'this sheep is black'); improve rule and error message.",
+      "status": "Todo",
+      "priority": "P2",
+      "tags": ["Validation","Listings"]
+    },
+    {
+      "id": "BUG-011",
+      "title": "Description renders as a single line",
+      "description": "Newlines ignored; preserve line breaks/paragraphs.",
+      "status": "Todo",
+      "priority": "P1",
+      "tags": ["Rendering","CSS","Listings"]
+    },
+    {
+      "id": "BUG-012",
+      "title": "Cannot edit upcoming listings (controls off-screen)",
+      "description": "Long description column causes horizontal overflow; edit/delete controls move off-canvas.",
+      "status": "Todo",
+      "priority": "P1",
+      "tags": ["Layout","Overflow","Listings"]
+    },
+    {
+      "id": "BUG-013",
+      "title": "Table horizontal overflow from long descriptions",
+      "description": "Forces users to scroll far right to find controls; clamp or wrap text and keep actions sticky.",
+      "status": "Todo",
+      "priority": "P2",
+      "tags": ["Layout","CSS","Listings"]
+    },
+    {
+      "id": "BUG-014",
+      "title": "Unformatted large price numbers",
+      "description": "Raw numbers are confusing; display K/M/B or locale separators.",
+      "status": "Todo",
+      "priority": "P1",
+      "tags": ["UI","Numbers"]
+    },
+    {
+      "id": "BUG-015",
+      "title": "Missing 'Add Balance' affordance",
+      "description": "Users expect an 'Add Balance' control and can't find it; either surface or indicate 'not available'.",
+      "status": "Backlog",
+      "priority": "P2",
+      "tags": ["Payments","Discoverability","UX"]
+    },
+    {
+      "id": "BUG-016",
+      "title": "Photo upload flips theme",
+      "description": "Uploading images toggles Light/Dark mode unexpectedly.",
+      "status": "Todo",
+      "priority": "P0",
+      "tags": ["Images","Theme","UI"]
+    },
+    {
+      "id": "BUG-017",
+      "title": "Cover photo select intermittently no-ops",
+      "description": "After a broken upload, 'Select cover' does nothing until image is removed/readded.",
+      "status": "Todo",
+      "priority": "P1",
+      "tags": ["Images","State"]
+    },
+    {
+      "id": "BUG-018",
+      "title": "Broken image has no placeholder/error",
+      "description": "Failed uploads leave a bad preview with no fallback indicator.",
+      "status": "Todo",
+      "priority": "P2",
+      "tags": ["Images","UX"]
+    },
+    {
+      "id": "BUG-019",
+      "title": "Photo reorder/swap unreliable",
+      "description": "Reordering or swapping photos sometimes requires multiple attempts; racey state updates.",
+      "status": "Backlog",
+      "priority": "P2",
+      "tags": ["Images","State","UX"]
+    },
+    {
+      "id": "BUG-020",
+      "title": "Mail/messages UI is hard to discover",
+      "description": "Messaging is visually 'under the rug'; placement and styling hide it.",
+      "status": "Backlog",
+      "priority": "P2",
+      "tags": ["Messaging","Navigation","UI"]
+    },
+    {
+      "id": "BUG-021",
+      "title": "Landing page font weight inconsistent",
+      "description": "First page typography looks too thick versus the rest of the site.",
+      "status": "Backlog",
+      "priority": "P2",
+      "tags": ["Typography","UI"]
+    },
+    {
+      "id": "BUG-022",
+      "title": "Layout feels crowded on first use",
+      "description": "Information density and spacing make it feel 'clogged'.",
+      "status": "Backlog",
+      "priority": "P2",
+      "tags": ["Layout","UX"]
+    },
+    {
+      "id": "BUG-023",
+      "title": "Sidebar/category tiles lack interaction",
+      "description": "Tiles are static; expected hover/expand behavior is missing.",
+      "status": "Backlog",
+      "priority": "P2",
+      "tags": ["UI","Interactions"]
+    },
+    {
+      "id": "BUG-024",
+      "title": "Poor mobile experience",
+      "description": "Header, cards, and forms render poorly on mobile sizes.",
+      "status": "Todo",
+      "priority": "P1",
+      "tags": ["Responsive","Mobile","UI"]
+    },
+    {
+      "id": "BUG-025",
+      "title": "Large desktop spacing/alignment issues (2560×1440)",
+      "description": "Needs spacing and layout QA at ultrawide/2K resolutions.",
+      "status": "Backlog",
+      "priority": "P3",
+      "tags": ["Responsive","Layout"]
+    },
+    {
+      "id": "BUG-026",
+      "title": "Admin panel visual misalignment",
+      "description": "Admin UI elements don’t line up; visual glitches reported.",
+      "status": "Backlog",
+      "priority": "P2",
+      "tags": ["Admin","UI"]
+    },
+    {
+      "id": "BUG-027",
+      "title": "Seller approval UI/logic mismatch",
+      "description": "UI implies all sellers need approval though it should be selective; confusing state.",
+      "status": "Todo",
+      "priority": "P1",
+      "tags": ["Admin","Policy","UX"]
+    },
+    {
+      "id": "BUG-028",
+      "title": "Missing trust copy on login",
+      "description": "No visible guidance like 'Don’t use your MC password' → users are skeptical.",
+      "status": "Todo",
+      "priority": "P2",
+      "tags": ["Trust","Auth","Content"]
+    }
+  ]
+}

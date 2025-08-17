@@ -1,0 +1,6 @@
+@import "tailwindcss";      /* v4 one-liner */
+/* optional: granular layers
+@import "tailwindcss/theme";
+@import "tailwindcss/utilities";
+*/
+:root { color-scheme: dark; }
