@@ -426,18 +426,35 @@ export default function App() {
   // Persist to backend after configurable delay; flush on unload/hidden
   const syncTimerRef = useRef(null);
   useEffect(() => {
-    if (!issues) return;
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-    syncTimerRef.current = setTimeout(() => { pushIssues(issues); }, SYNC_DELAY_MS);
+    syncTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(apiUrl('/bugsapi'), { headers: { 'ngrok-skip-browser-warning': '1' } });
+        if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+        const data = await res.json();
+        if (Array.isArray(data.issues)) setIssues(data.issues);
+      } catch (e) {
+        console.warn('Failed to fetch issues during sync', e);
+      }
+    }, SYNC_DELAY_MS);
     return () => { if (syncTimerRef.current) clearTimeout(syncTimerRef.current); };
   }, [issues]);
   useEffect(() => {
-    const flush = () => pushIssues(issues);
-    window.addEventListener('beforeunload', flush);
-    const vis = () => { if (document.visibilityState === 'hidden') flush(); };
-    document.addEventListener('visibilitychange', vis);
-    return () => { window.removeEventListener('beforeunload', flush); document.removeEventListener('visibilitychange', vis); };
-  }, [issues]);
+    const fetchOnVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        try {
+          const res = await fetch(apiUrl('/bugsapi'), { headers: { 'ngrok-skip-browser-warning': '1' } });
+          if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+          const data = await res.json();
+          if (Array.isArray(data.issues)) setIssues(data.issues);
+        } catch (e) {
+          console.warn('Failed to fetch issues on visibility change', e);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', fetchOnVisibilityChange);
+    return () => { document.removeEventListener('visibilitychange', fetchOnVisibilityChange); };
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors">
