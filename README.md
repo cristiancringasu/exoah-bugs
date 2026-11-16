@@ -1,3 +1,5 @@
+> **Moved:** active development and releases are now in the private [Exoah repository](https://github.com/cristiancringasu/Exoah). This repository is retained as read-only history. Use the [current setup and operations cheatsheet](https://github.com/cristiancringasu/Exoah/blob/main/CHEATSHEET.md).
+
 # Exotics Café issue board
 
 [Complete project setup and operations cheatsheet](https://github.com/cristiancringasu/exoah-api/blob/main/CHEATSHEET.md) — available to the private API repository's collaborators. It covers all four projects, configuration, deployment, backups and useful commands. Credentials stay outside Git.
