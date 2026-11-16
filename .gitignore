@@ -2,6 +2,13 @@ node_modules/
 dist/
 .env
 .env.*
+*.env
 !.env.example
+private-access/
+*.pem
+*.key
+*.sql
+*.sql.gz
+*.tar.gz
 .DS_Store
 *.log
