@@ -1,12 +1,9 @@
-# React + Vite
+# Exotics Café issue board
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Use Node 24, run `npm ci`, copy `.env.example` to `.env`, then `npm run dev`. The local board runs on port 3001 and uses the API on port 33123. Set `WATCH_USE_POLLING=true` in the development process environment if filesystem watching stalls.
 
-Currently, two official plugins are available:
+Guests can read the shared board and submit new reports. Existing reports, comments, status changes, imports and raw JSON edits require an actual administrator account from the Exotics Café API. There is no client-side maintainer key. Saves use a revision check to prevent overwriting someone else's work. When a conflict appears, export any unsaved work before refreshing.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+`npm run build`, `npm run lint`, `npm run format:check` and `npm audit --audit-level=moderate` check the project. Deploy the `dist/` build to Vercel with `VITE_BUGS_API_BASE=https://api.exotics.cafe`; include the board's exact origin in API `CORS_ORIGINS`.
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Reports are public. Do not paste passwords, private keys or sensitive account details into them. The API persists board data in `BUGS_JSON_PATH`; it belongs in the API data backup. The repository's `bugs.json` is an existing reference backlog and is not automatically published to a server.

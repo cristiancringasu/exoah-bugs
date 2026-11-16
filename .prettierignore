@@ -1,0 +1,14 @@
+node_modules
+build
+dist
+coverage
+data
+images
+backups
+public
+package-lock.json
+.env*
+*.sql
+*.sql.gz
+*.log
+*.txt
