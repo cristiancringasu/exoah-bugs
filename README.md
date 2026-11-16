@@ -1,5 +1,7 @@
 # Exotics Café issue board
 
+[Complete project setup and operations cheatsheet](https://github.com/cristiancringasu/exoah-api/blob/main/CHEATSHEET.md) — available to the private API repository's collaborators. It covers all four projects, configuration, deployment, backups and useful commands. Credentials stay outside Git.
+
 Use Node 24, run `npm ci`, copy `.env.example` to `.env`, then `npm run dev`. The local board runs on port 3001 and uses the API on port 33123. Set `WATCH_USE_POLLING=true` in the development process environment if filesystem watching stalls.
 
 Guests can read the shared board and submit new reports. Existing reports, comments, status changes, imports and raw JSON edits require an actual administrator account from the Exotics Café API. There is no client-side maintainer key. Saves use a revision check to prevent overwriting someone else's work. When a conflict appears, export any unsaved work before refreshing.
