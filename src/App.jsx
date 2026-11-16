@@ -1,694 +1,785 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-
-// Configurable API base: use env, else localhost in dev, else same-origin
-const API_BASE = import.meta.env.VITE_BUGS_API_BASE || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'https://localhost:33123' : '');
-function apiUrl(path) { return `${API_BASE}${path}`; }
-const SYNC_DELAY_MS = Number(import.meta.env.VITE_BUGS_SYNC_DELAY_MS) || 10000; // default 10s
-const API_HEADERS = { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' };
-
-// Exotics Café Bugs Board: front‑end only issue board that ingests JSON, edits it in place, and lets you export.
-// No backend. Uses Tailwind. Works entirely in browser with localStorage persistence.
-// Key features:
-// - Import JSON (file, paste, or URL)
-// - Auto-normalize to an Issue[] shape
-// - Kanban board with drag-and-drop across columns (HTML5 DnD)
-// - Inline edit via side panel modal
-// - Search, filter by status, sort, add/remove issues
-// - Raw JSON editor kept in sync
-// - Export JSON (download)
-
-// ---- Types (for clarity) ----
-// Issue shape we normalize to:
-// {
-//   id: string,
-//   title: string,
-//   description?: string,
-//   status: string,          // e.g., Backlog, Todo, In Progress, Done, Archived
-//   priority?: "P0"|"P1"|"P2"|"P3",
-//   assignee?: string,
-//   tags?: string[],
-//   createdAt?: string,      // ISO
-//   updatedAt?: string,      // ISO
-//   comments?: { id: string, author?: string, body: string, createdAt: string }[]
-// }
-
-const LS_KEY = "exotics-bugs-issues-v1";
-// Removed THEME_LS_KEY (theme toggle eliminated)
-const ROLE_LS_KEY = 'exotics-bugs-role';
-const MAINTAINER_KEY = 'changeme'; // TODO: set this to a non-obvious phrase before deploying
-
-const DEFAULT_STATUSES = ["Backlog", "Todo", "In Progress", "Done", "Archived"]; // canonical ordering
-
-// const SAMPLE_ISSUES = [];
-const INITIAL_ISSUES = [];
-
-function uid(prefix = "id") {
-  return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function normalizeIncomingJSON(input) {
-  try {
-    let data = input;
-    if (typeof input === "string") data = JSON.parse(input);
-
-    // Accept: Issue[], { issues: Issue[] }, or anything with an array at a known key
-    let issues = [];
-    if (Array.isArray(data)) issues = data;
-    else if (data && Array.isArray(data.issues)) issues = data.issues;
-    else if (data && Array.isArray(data.items)) issues = data.items;
-    else if (data && Array.isArray(data.bugs)) issues = data.bugs;
-
-    issues = issues.map((raw, idx) => {
-      const id = `${raw.id ?? raw.key ?? `ISSUE-${idx + 1}`}`;
-      const title = `${raw.title ?? raw.summary ?? raw.name ?? "Untitled"}`;
-      const status = `${raw.status ?? raw.state ?? "Backlog"}`;
-      const priority = raw.priority ?? raw.severity ?? undefined;
-      const tags = raw.tags ?? raw.labels ?? [];
-      const createdAt = raw.createdAt ?? raw.created ?? new Date().toISOString();
-      const updatedAt = raw.updatedAt ?? raw.updated ?? createdAt;
-      const comments = raw.comments ?? [];
-      return {
-        id,
-        title,
-        description: raw.description ?? "",
-        status,
-        priority,
-        assignee: raw.assignee ?? raw.owner ?? "",
-        tags: Array.isArray(tags) ? tags : (typeof tags === "string" ? tags.split(",").map(s=>s.trim()).filter(Boolean) : []),
-        createdAt,
-        updatedAt,
-        comments: Array.isArray(comments) ? comments.map((c, i) => ({
-          id: c.id ?? uid(`c${i}`),
-          author: c.author ?? c.user ?? "",
-          body: c.body ?? c.text ?? String(c ?? ""),
-          createdAt: c.createdAt ?? c.created ?? new Date().toISOString()
-        })) : []
-      };
-    });
-
-    return issues;
-  } catch (e) {
-    console.error("Failed to parse/normalize JSON", e);
-    throw e;
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+const API = (
+  import.meta.env.VITE_BUGS_API_BASE ||
+  (import.meta.env.DEV ? "http://127.0.0.1:33123" : "https://api.exotics.cafe")
+).replace(/\/$/, "");
+const statuses = ["Backlog", "Todo", "In Progress", "Done", "Archived"];
+const priorities = ["P0", "P1", "P2", "P3"];
+const tokenKey = "exoah-board-session";
+const button =
+  "rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-cyan-400 disabled:opacity-50";
+const input =
+  "w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-slate-100 focus:outline-2 focus:outline-cyan-400 disabled:opacity-60";
+async function api(path, options = {}) {
+  const token = sessionStorage.getItem(tokenKey);
+  const response = await fetch(`${API}${path}`, {
+    ...options,
+    signal: AbortSignal.timeout(15000),
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+  });
+  const data = await response.json().catch(() => ({
+    error: "The server returned an unexpected response. Please try again.",
+  }));
+  if (!response.ok) {
+    if (response.status === 401) {
+      sessionStorage.removeItem(tokenKey);
+      window.dispatchEvent(new Event("board-session-expired"));
+    }
+    const messages = {
+      invalid_credentials: "The account or password is incorrect.",
+      otp_service_unavailable: "Discord sign-in is temporarily unavailable.",
+      invalid_or_expired_session: "Your session expired. Sign in again.",
+    };
+    throw new Error(
+      messages[data.error] ||
+        data.error ||
+        "The request could not be completed.",
+    );
   }
+  return data;
 }
-
-function downloadJSON(filename, json) {
-  const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
+function download(issues) {
+  const url = URL.createObjectURL(
+    new Blob([JSON.stringify({ issues }, null, 2)], {
+      type: "application/json",
+    }),
+  );
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "exoah-issues.json";
+  link.click();
   URL.revokeObjectURL(url);
 }
-
-function useLocalStorageState(key, initialValue) {
-  const [state, setState] = useState(() => {
-    try {
-      const raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : initialValue;
-    } catch {
-      return initialValue;
-    }
-  });
-  useEffect(() => {
-    try { localStorage.setItem(key, JSON.stringify(state)); } catch {}
-  }, [key, state]);
-  return [state, setState];
+function normalize(value) {
+  const list = Array.isArray(value)
+    ? value
+    : value.issues || value.items || value.bugs;
+  if (!Array.isArray(list) || list.length > 500)
+    throw new Error("Provide a JSON list of up to 500 issues.");
+  return list.map((issue, index) => ({
+    id: String(issue.id || `ISSUE-${index + 1}`),
+    title: String(issue.title || issue.summary || "Untitled"),
+    description: String(issue.description || ""),
+    status: String(issue.status || "Backlog"),
+    priority: priorities.includes(issue.priority) ? issue.priority : "P2",
+    assignee: String(issue.assignee || ""),
+    tags: Array.isArray(issue.tags) ? issue.tags.map(String) : [],
+    comments: Array.isArray(issue.comments) ? issue.comments : [],
+    createdAt: issue.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    createdByVisitor: issue.createdByVisitor === true,
+  }));
 }
-
-function classNames(...xs) { return xs.filter(Boolean).join(" "); }
-
-const PriorityBadge = ({ p }) => {
-  if (!p) return null;
-  const map = {
-    P0: "bg-red-600/20 text-red-400 ring-red-500/30",
-    P1: "bg-orange-600/20 text-orange-400 ring-orange-500/30",
-    P2: "bg-yellow-600/20 text-yellow-300 ring-yellow-500/30",
-    P3: "bg-slate-600/20 text-slate-300 ring-slate-500/30"
-  };
-  return (
-    <span className={classNames("px-2 py-0.5 text-xs rounded-full ring-1", map[p] ?? map.P3)}>{p}</span>
-  );
-};
-
-const Tag = ({ t }) => (
-  <span className="px-2 py-0.5 text-xs rounded bg-slate-300 text-slate-700 ring-1 ring-slate-400 dark:bg-slate-700/50 dark:text-slate-200 dark:ring-slate-600 transition-colors">{t}</span>
-);
-
-const IconButton = ({ title, onClick, children }) => (
-  <button title={title} onClick={onClick}
-    className="inline-flex items-center gap-2 rounded-lg px-3 py-2 bg-slate-200 text-slate-900 hover:bg-slate-300 active:bg-slate-400 ring-1 ring-slate-300 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:active:bg-slate-600 dark:ring-slate-700 transition-colors">
-    {children}
-  </button>
-);
-
-const Modal = ({ open, onClose, children }) => {
+function Modal({ open, title, onClose, children, error }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const dialog = ref.current;
+    if (open && dialog && !dialog.open) dialog.showModal();
+    return () => {
+      if (dialog?.open) dialog.close();
+    };
+  }, [open]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/40 dark:bg-black/60" onClick={onClose} />
-      <div className="absolute inset-0 flex items-center justify-center p-6">
-        <div className="w-full max-w-3xl rounded-2xl bg-white text-slate-900 ring-1 ring-slate-300 dark:bg-slate-900 dark:text-slate-100 dark:ring-slate-700 p-6 shadow-xl overflow-hidden transition-colors">
-          {children}
-        </div>
+    <dialog
+      ref={ref}
+      aria-label={title}
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      className="m-auto max-h-[88vh] w-[calc(100%_-_2rem)] max-w-3xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-xl backdrop:bg-black/70"
+    >
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <h2 className="text-xl font-bold">{title}</h2>
+        <button
+          className={button}
+          aria-label={`Close ${title}`}
+          onClick={onClose}
+        >
+          Close
+        </button>
       </div>
-    </div>
+      {error && (
+        <p
+          role="alert"
+          className="mb-4 rounded-lg border border-red-700 p-3 text-red-200"
+        >
+          {error}
+        </p>
+      )}
+      {children}
+    </dialog>
   );
-};
-
-const TextInput = (props) => (
-  <input {...props} className={classNames(
-    "w-full rounded-lg px-3 py-2 ring-1 focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white text-slate-900 ring-slate-300 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700",
-    props.className)} />
-);
-
-const TextArea = (props) => (
-  <textarea {...props} className={classNames(
-    "w-full rounded-lg px-3 py-2 ring-1 focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white text-slate-900 ring-slate-300 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700",
-    props.className)} />
-);
-
-const Select = ({ value, onChange, options, className }) => (
-  <select value={value} onChange={onChange} className={classNames(
-    "w-full rounded-lg px-3 py-2 ring-1 focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white text-slate-900 ring-slate-300 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700",
-    className)}>
-    {options.map((o) => <option key={o} value={o}>{o}</option>)}
-  </select>
-);
-
-function IssueCard({ issue, onOpen, onDragStart }) {
+}
+function Field({ label, children }) {
   return (
-    <div draggable onDragStart={(e)=>onDragStart(e, issue)}
-      onDoubleClick={onOpen}
-      className="group cursor-grab active:cursor-grabbing rounded-xl bg-white ring-1 ring-slate-300 p-3 shadow hover:shadow-lg hover:ring-cyan-600 transition dark:bg-slate-800 dark:ring-slate-700">
-      <div className="flex items-center justify-between gap-2">
-        <h4 className="font-semibold text-slate-900 dark:text-slate-100 text-sm line-clamp-2">{issue.title}</h4>
-        <PriorityBadge p={issue.priority} />
-      </div>
-      <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 line-clamp-3">{issue.description}</p>
-      <div className="mt-2 flex flex-wrap gap-1">
-        {issue.tags?.slice(0,4).map(t=> <Tag key={t} t={t} />)}
-      </div>
-      <div className="mt-2 text-[10px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
-        <span>#{issue.id}</span>
-        {issue.assignee ? <span>@{issue.assignee}</span> : <span className="opacity-60">unassigned</span>}
-      </div>
-    </div>
+    <label className="grid gap-1.5 text-sm text-slate-300">
+      {label}
+      {children}
+    </label>
   );
 }
-
-function Column({ name, issues, onDropIssue, onOpenIssue }) {
-  const onDragOver = (e) => e.preventDefault();
-  const onDrop = (e) => {
-    e.preventDefault();
-    const id = e.dataTransfer.getData("text/issue-id");
-    if (id) onDropIssue(id, name);
-  };
-  return (
-    <div onDragOver={onDragOver} onDrop={onDrop}
-      className="flex flex-col gap-3 rounded-2xl bg-white ring-1 ring-slate-200 p-3 min-h-[60vh] dark:bg-slate-900/60 dark:ring-slate-800 transition-colors">
-      <div className="flex items-center justify-between">
-        <h3 className="text-slate-800 dark:text-slate-200 font-semibold">{name}</h3>
-        <span className="text-xs text-slate-500 dark:text-slate-400">{issues.length}</span>
-      </div>
-      <div className="flex flex-col gap-3">
-        {issues.map((it)=> (
-          <IssueCard key={it.id} issue={it} onOpen={()=>onOpenIssue(it)}
-            onDragStart={(e)=>{ e.dataTransfer.setData("text/issue-id", it.id); }} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// Helper to append only new issues by id
-function appendNewIssues(prev, incoming) {
-  const existingIds = new Set(prev.map(i => i.id));
-  const additions = incoming.filter(i => !existingIds.has(i.id)).map(i => ({ ...i, createdByVisitor: i.createdByVisitor ?? false }));
-  if (additions.length === 0) return prev;
-  return [...prev, ...additions];
-}
-
 export default function App() {
-  // Force dark mode once on mount
-  useEffect(()=>{ document.documentElement.classList.add('dark'); }, []);
-
-  const [issues, setIssues] = useState(INITIAL_ISSUES);
+  const [issues, setIssues] = useState([]);
+  const [revision, setRevision] = useState("");
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-
-  const pushIssues = async (list) => {
-    try { setSyncing(true); await fetch(apiUrl('/bugsapi'), { method: 'PUT', headers: API_HEADERS, body: JSON.stringify({ issues: list }) }); }
-    catch(e) { console.error('Failed to push issues', e); }
-    finally { setSyncing(false); }
-  };
-
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [account, setAccount] = useState(null);
+  const [loginOpen, setLoginOpen] = useState(false);
   const [selected, setSelected] = useState(null);
-  // replaced generic query with focused search term
+  const [isNew, setIsNew] = useState(false);
   const [search, setSearch] = useState("");
-  const [sortKey, setSortKey] = useState("priority"); // priority | createdAt | title
-  const [showJSON, setShowJSON] = useState(false);
-  const [pasteOpen, setPasteOpen] = useState(false);
-  const [urlOpen, setUrlOpen] = useState(false);
-  const urlInputRef = useRef(null);
-
-  const [role, setRole] = useLocalStorageState(ROLE_LS_KEY, 'guest');
-  const [maintainerInput, setMaintainerInput] = useState('');
-  // New draft state for unsaved issue
-  const [draft, setDraft] = useState(null);
-  // Tag filter state
-  const [tagFilter, setTagFilter] = useState("");
-
-  const allStatuses = useMemo(() => {
-    const found = Array.from(new Set(issues.map(i => i.status))).filter(Boolean);
-    const merged = [...DEFAULT_STATUSES];
-    for (const s of found) if (!merged.includes(s)) merged.splice(merged.length - 1, 0, s); // insert before Archived
-    return merged;
-  }, [issues]);
-
-  const filtered = useMemo(() => {
-    const searchQ = search.trim().toLowerCase();
-    const tagQ = tagFilter.trim().toLowerCase();
-    let list = [...issues];
-    if (searchQ) {
-      list = list.filter(i =>
-        i.title?.toLowerCase().includes(searchQ) ||
-        (i.priority && i.priority.toLowerCase() === searchQ) ||
-        (searchQ.startsWith('p') && i.priority?.toLowerCase() === searchQ)
+  const [tag, setTag] = useState("");
+  const [sort, setSort] = useState("priority");
+  const [rawOpen, setRawOpen] = useState(false);
+  const [raw, setRaw] = useState("");
+  const [importURL, setImportURL] = useState("");
+  const [comment, setComment] = useState("");
+  const importRef = useRef(null);
+  const admin = Boolean(account?.admin);
+  useEffect(() => {
+    const expire = () => setAccount(null);
+    window.addEventListener("board-session-expired", expire);
+    return () => window.removeEventListener("board-session-expired", expire);
+  }, []);
+  const load = useCallback(async (visible = true) => {
+    if (visible) setLoading(true);
+    try {
+      const data = await api("/bugsapi");
+      setIssues(data.issues);
+      setRevision(data.revision);
+      setError("");
+    } catch (failure) {
+      setError(
+        failure.message || "The board could not be reached. Please try again.",
       );
+    } finally {
+      if (visible) setLoading(false);
     }
-    if (tagQ) {
-      list = list.filter(i => i.tags?.some(t => t.toLowerCase().includes(tagQ)));
+  }, []);
+  useEffect(() => {
+    load();
+    if (sessionStorage.getItem(tokenKey))
+      api("/auth/validate")
+        .then((user) => {
+          if (user.admin) setAccount(user);
+          else sessionStorage.removeItem(tokenKey);
+        })
+        .catch(() => sessionStorage.removeItem(tokenKey));
+  }, [load]);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!selected && !rawOpen && !saving) load(false);
+    }, 30000);
+    return () => clearInterval(timer);
+  }, [load, selected, rawOpen, saving]);
+  async function save(next) {
+    if (!admin || saving) return false;
+    setSaving(true);
+    setError("");
+    try {
+      const result = await api("/bugsapi", {
+        method: "PUT",
+        headers: { "If-Match": revision },
+        body: JSON.stringify({ issues: next }),
+      });
+      setIssues(result.issues);
+      setRevision(result.revision);
+      return true;
+    } catch (failure) {
+      setError(failure.message);
+      return false;
+    } finally {
+      setSaving(false);
     }
-    const priorityRank = { P0: 0, P1: 1, P2: 2, P3: 3 };
-    list.sort((a,b) => {
-      if (sortKey === "priority") return (priorityRank[a.priority] ?? 99) - (priorityRank[b.priority] ?? 99);
-      if (sortKey === "createdAt") return new Date(a.createdAt||0) - new Date(b.createdAt||0);
-      if (sortKey === "title") return (a.title||"").localeCompare(b.title||"");
-      return 0;
-    });
-    return list;
-  }, [issues, search, sortKey, tagFilter]);
-
-  const byStatus = useMemo(() => {
-    const map = Object.fromEntries(allStatuses.map(s => [s, []]));
-    for (const it of filtered) {
-      const s = it.status && map[it.status] ? it.status : "Backlog";
-      map[s].push(it);
-    }
-    return map;
-  }, [filtered, allStatuses]);
-
-  const updateIssue = (id, patch) => {
-    if (draft && draft.id === id) {
-      setDraft(d => d ? { ...d, ...patch, updatedAt: new Date().toISOString() } : d);
-      return;
-    }
-    // setIssues(prev => prev.map(i => i.id === id ? { ...i, ...patch, updatedAt: new Date().toISOString() } : i));
-    setIssues(prev => { const next = prev.map(i => i.id === id ? { ...i, ...patch, updatedAt: new Date().toISOString() } : i); pushIssues(next); return next; });
-  };
-
-  const moveIssueTo = (id, status) => {
-    if (draft && draft.id === id) return;
-    const issue = issues.find(i => i.id === id);
-    const canEdit = role === 'maintainer' || issue?.createdByVisitor;
-    if (!canEdit) return;
-    updateIssue(id, { status });
-  };
-
-  const addIssue = () => {
-    // If a draft already exists, confirm discard
-    if (draft && !confirm('Discard current unsaved issue?')) return;
-    const id = `ISSUE-${Math.max(0, ...issues.map(i => Number(String(i.id).split("-").pop()) || 0)) + 1}`;
-    const createdByVisitor = role !== 'maintainer';
-    const newDraft = {
-      id,
-      title: "New issue",
+  }
+  const visible = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const tagQuery = tag.trim().toLowerCase();
+    return issues
+      .filter(
+        (issue) =>
+          (!query ||
+            `${issue.title} ${issue.description} ${issue.priority || ""}`
+              .toLowerCase()
+              .includes(query)) &&
+          (!tagQuery ||
+            issue.tags?.some((value) =>
+              value.toLowerCase().includes(tagQuery),
+            )),
+      )
+      .sort((a, b) =>
+        sort === "title"
+          ? a.title.localeCompare(b.title)
+          : sort === "createdAt"
+            ? Date.parse(b.createdAt) - Date.parse(a.createdAt)
+            : (priorities.indexOf(a.priority) < 0
+                ? 99
+                : priorities.indexOf(a.priority)) -
+              (priorities.indexOf(b.priority) < 0
+                ? 99
+                : priorities.indexOf(b.priority)),
+      );
+  }, [issues, search, tag, sort]);
+  const columns = [
+    ...new Set([...statuses, ...issues.map((issue) => issue.status)]),
+  ];
+  function edit(patch) {
+    setSelected((previous) => ({
+      ...previous,
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    }));
+  }
+  function newIssue() {
+    setIsNew(true);
+    setComment("");
+    setSelected({
+      id: `ISSUE-${crypto.randomUUID()}`,
+      title: "",
       description: "",
       status: "Backlog",
       priority: "P2",
       assignee: "",
-      tags: ["Discord Bugs"], // default tag
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      tags: [],
       comments: [],
-      createdByVisitor,
-    };
-    setDraft(newDraft); // Do NOT add to issues yet
-  };
-
-  const saveDraft = () => {
-    if (!draft) return;
-    if (!draft.title.trim()) { alert('Title is required'); return; }
-    setIssues(prev => { const next = [draft, ...prev]; pushIssues(next); return next; });
-    setSelected(draft);
-    setDraft(null);
-  };
-
-  const deleteIssue = (id) => {
-    if (draft && draft.id === id) { setDraft(null); return; }
-    const issue = issues.find(i => i.id === id);
-    const canDelete = role === 'maintainer' || issue?.createdByVisitor;
-    if (!canDelete) return alert('Only maintainers can delete existing issues.');
-    setIssues(prev => { const next = prev.filter(i => i.id !== id); pushIssues(next); return next; });
-    if (selected?.id === id) setSelected(null);
-  };
-
-  const handleImportFile = async (file) => {
-    try {
-      const text = await file.text();
-      const incoming = normalizeIncomingJSON(text);
-      setIssues(prev => { const next = appendNewIssues(prev, incoming); pushIssues(next); return next; });
-    } catch (e) { alert("Failed to import JSON: " + e.message); }
-  };
-
-  const handlePasteJSON = (text) => {
-    try {
-      const incoming = normalizeIncomingJSON(text);
-      setIssues(prev => { const next = appendNewIssues(prev, incoming); pushIssues(next); return next; });
-      setPasteOpen(false);
-    } catch (e) { alert("Invalid JSON"); }
-  };
-
-  const handleFetchURL = async () => {
-    try {
-      const url = urlInputRef.current?.value?.trim();
-      if (!url) return;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      const data = await res.json();
-      const incoming = normalizeIncomingJSON(data);
-      setIssues(prev => { const next = appendNewIssues(prev, incoming); pushIssues(next); return next; });
-      setUrlOpen(false);
-    } catch (e) { alert("Failed to fetch JSON: " + e.message); }
-  };
-
-  const [rawJSON, setRawJSON] = useState("");
-  useEffect(() => { setRawJSON(JSON.stringify(issues, null, 2)); }, [issues]);
-  const applyRawJSON = () => {
-    try {
-      const parsed = JSON.parse(rawJSON);
-      const incoming = normalizeIncomingJSON(parsed);
-      setIssues(prev => { const next = appendNewIssues(prev, incoming); pushIssues(next); return next; });
-    } catch (e) { alert("Invalid JSON: " + e.message); }
-  };
-
-  const resetToFile = () => {
-    // Removed: no local file reset
-  };
-
-  const handleMaintainerLogin = (e) => {
-    e.preventDefault();
-    if (maintainerInput === MAINTAINER_KEY) {
-      setRole('maintainer');
-      setMaintainerInput('');
-    } else {
-      alert('Invalid key');
+      createdAt: new Date().toISOString(),
+      createdByVisitor: !admin,
+    });
+  }
+  async function saveIssue(event) {
+    event.preventDefault();
+    if (!selected.title.trim() || saving) return;
+    if (admin) {
+      const next = isNew
+        ? [selected, ...issues]
+        : issues.map((issue) => (issue.id === selected.id ? selected : issue));
+      if (await save(next)) setSelected(null);
+    } else if (isNew) {
+      setSaving(true);
+      setError("");
+      try {
+        await api("/bugsapi", {
+          method: "POST",
+          body: JSON.stringify({
+            title: selected.title,
+            description: selected.description,
+          }),
+        });
+        setSelected(null);
+        await load(false);
+      } catch (failure) {
+        setError(failure.message);
+      } finally {
+        setSaving(false);
+      }
     }
-  };
-  const logoutMaintainer = () => setRole('guest');
-
-  useEffect(() => {
-    // Initial fetch from backend to get shared issues
-    (async () => {
-      try {
-        const res = await fetch(apiUrl('/bugsapi'), { headers: { 'ngrok-skip-browser-warning': '1' } });
-        if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
-        const data = await res.json();
-        if (Array.isArray(data.issues)) setIssues(data.issues);
-      } catch(e) { console.warn('Bugs API initial fetch failed', e); }
-      finally { setLoading(false); }
-    })();
-  }, []);
-
-  // Persist to backend after configurable delay; flush on unload/hidden
-  const syncTimerRef = useRef(null);
-  useEffect(() => {
-    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-    syncTimerRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch(apiUrl('/bugsapi'), { headers: { 'ngrok-skip-browser-warning': '1' } });
-        if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
-        const data = await res.json();
-        if (Array.isArray(data.issues)) setIssues(data.issues);
-      } catch (e) {
-        console.warn('Failed to fetch issues during sync', e);
-      }
-    }, SYNC_DELAY_MS);
-    return () => { if (syncTimerRef.current) clearTimeout(syncTimerRef.current); };
-  }, [issues]);
-  useEffect(() => {
-    const fetchOnVisibilityChange = async () => {
-      if (document.visibilityState === 'visible') {
-        try {
-          const res = await fetch(apiUrl('/bugsapi'), { headers: { 'ngrok-skip-browser-warning': '1' } });
-          if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
-          const data = await res.json();
-          if (Array.isArray(data.issues)) setIssues(data.issues);
-        } catch (e) {
-          console.warn('Failed to fetch issues on visibility change', e);
-        }
-      }
-    };
-    document.addEventListener('visibilitychange', fetchOnVisibilityChange);
-    return () => { document.removeEventListener('visibilitychange', fetchOnVisibilityChange); };
-  }, []);
-
+  }
+  async function signIn(event) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setSaving(true);
+    setError("");
+    try {
+      const result = await api("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({
+          username: form.get("username"),
+          password: form.get("password"),
+        }),
+      });
+      if (!result.admin)
+        throw new Error(
+          "This account does not have board administration access.",
+        );
+      sessionStorage.setItem(tokenKey, result.token);
+      setAccount(result);
+      setLoginOpen(false);
+    } catch (failure) {
+      setError(failure.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+  async function importJSON(text) {
+    try {
+      if (text.length > 1000000)
+        throw new Error("The import must be smaller than 1 MB.");
+      const incoming = normalize(JSON.parse(text));
+      const ids = new Set(issues.map((issue) => issue.id));
+      await save([
+        ...issues,
+        ...incoming.filter((issue) => !ids.has(issue.id)),
+      ]);
+    } catch (failure) {
+      setError(failure.message);
+    }
+  }
+  async function importFromURL() {
+    try {
+      const url = new URL(importURL);
+      if (
+        !["https:", "http:"].includes(url.protocol) ||
+        url.username ||
+        url.password
+      )
+        throw new Error("Enter a public HTTP or HTTPS JSON URL.");
+      const response = await fetch(url, {
+        credentials: "omit",
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!response.ok) throw new Error("That URL could not be loaded.");
+      await importJSON(await response.text());
+    } catch (failure) {
+      setError(failure.message);
+    }
+  }
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors">
-      <header className="border-b border-slate-200 dark:border-slate-800 transition-colors">
-        <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-          <div className="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h1 className="text-3xl font-extrabold">Exotics Café Bugs</h1>
-              <p className="text-sm text-slate-400">Track & triage website issues</p>
-            </div>
-            {/* Maintainer auth panel moved right to reduce left clutter */}
-            <div className="flex flex-wrap gap-4 items-center justify-end">
-              {role === 'maintainer' ? (
-                <div className="flex items-center gap-2 text-xs bg-emerald-600/10 text-emerald-300 px-3 py-1 rounded-lg ring-1 ring-emerald-500/30">
-                  <span>Maintainer</span>
-                  <button onClick={logoutMaintainer} className="ml-2 px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30">Sign out</button>
-                </div>
-              ) : (
-                <form onSubmit={handleMaintainerLogin} className="flex items-center gap-2 text-xs">
-                  <input type="password" placeholder="Maintainer key" value={maintainerInput} onChange={e=>setMaintainerInput(e.target.value)}
-                         className="px-2 py-1 rounded bg-slate-800 text-slate-200 ring-1 ring-slate-700 focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-                  <button type="submit" className="px-2 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-white">Enter</button>
-                </form>
-              )}
-            </div>
+    <div className="min-h-screen bg-slate-950 text-slate-100">
+      <header className="border-b border-slate-800">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-6">
+          <div>
+            <h1 className="text-3xl font-bold">Exotics Café Bugs</h1>
+            <p className="mt-1 text-sm text-slate-400">
+              Track and review website issues.
+            </p>
           </div>
-
-          {/* Filters row */}
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap gap-2 items-center">
-              <Select value={sortKey} onChange={(e)=>setSortKey(e.target.value)} options={["priority","createdAt","title"]} className="w-28 md:w-32" />
-              <input
-                type="text"
-                placeholder="Search (title / P0)"
-                value={search}
-                onChange={(e)=>setSearch(e.target.value)}
-                className="w-40 md:w-52 rounded-lg bg-white text-slate-900 ring-1 ring-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700"
-              />
-              <input
-                type="text"
-                placeholder="Tag filter"
-                value={tagFilter}
-                onChange={(e)=>setTagFilter(e.target.value)}
-                className="w-36 md:w-40 rounded-lg bg-white text-slate-900 ring-1 ring-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700"
-              />
-            </div>
-            {/* Actions row */}
-            <div className="flex flex-wrap gap-2 items-center w-full lg:w-auto [&>*]:shrink-0">
-              <span className="text-xs text-slate-500 dark:text-slate-400 mr-2">{loading? 'Loading…' : syncing? 'Syncing…' : ''}</span>
-              <IconButton title="Add issue" onClick={addIssue}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-                <span>New</span>
-              </IconButton>
-              {role === 'maintainer' && false && (
-                <IconButton title="Reset to bugs.json" onClick={resetToFile}>♻️<span>Reset</span></IconButton>
-              )}
-              <label className="inline-flex items-center gap-2 cursor-pointer">
-                <input type="file" accept="application/json" className="hidden" onChange={(e)=>{ const f=e.target.files?.[0]; if (f) handleImportFile(f); e.target.value=''; }} />
-                <span className="inline-flex items-center gap-2 rounded-lg px-3 py-2 bg-slate-200 text-slate-900 hover:bg-slate-300 ring-1 ring-slate-300 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:ring-slate-700">📁 Import</span>
-              </label>
-              <IconButton title="Paste JSON" onClick={()=>setPasteOpen(true)}>📋<span>Paste</span></IconButton>
-              <IconButton title="Load from URL" onClick={()=>setUrlOpen(true)}>🔗<span>From URL</span></IconButton>
-              <IconButton title="Download JSON" onClick={()=>downloadJSON("issues.json", issues)}>💾<span>Export</span></IconButton>
-              <IconButton title="Raw JSON" onClick={()=>setShowJSON(v=>!v)}>{showJSON?"❎":"{}"}<span>Raw</span></IconButton>
-              {/* Theme toggle removed */}
-            </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className={button}
+              onClick={newIssue}
+              disabled={loading || saving}
+            >
+              New report
+            </button>
+            <button className={button} onClick={() => download(issues)}>
+              Export JSON
+            </button>
+            {admin ? (
+              <>
+                <button
+                  className={button}
+                  onClick={() => {
+                    setRaw(JSON.stringify({ issues }, null, 2));
+                    setRawOpen(true);
+                  }}
+                >
+                  Import / edit JSON
+                </button>
+                <button
+                  className={button}
+                  onClick={() => {
+                    sessionStorage.removeItem(tokenKey);
+                    setAccount(null);
+                  }}
+                >
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <button className={button} onClick={() => setLoginOpen(true)}>
+                Maintainer sign in
+              </button>
+            )}
           </div>
         </div>
       </header>
-
-      <main className="max-w-7xl mx-auto px-4 py-6">
-        {/* Board */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {allStatuses.map((s) => (
-            <Column key={s} name={s} issues={byStatus[s] ?? []}
-                    onDropIssue={(id, status)=> moveIssueTo(id, status)} onOpenIssue={setSelected} />
+      <main className="mx-auto max-w-7xl space-y-5 px-4 py-6">
+        {error && (
+          <div
+            role="alert"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-700 bg-red-950/40 p-4"
+          >
+            <span>{error}</span>
+            <button className={button} onClick={() => load()}>
+              Refresh board
+            </button>
+          </div>
+        )}
+        <div className="flex flex-wrap items-end gap-3">
+          <Field label="Search issues">
+            <input
+              className={input}
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </Field>
+          <Field label="Filter tags">
+            <input
+              className={input}
+              value={tag}
+              onChange={(event) => setTag(event.target.value)}
+            />
+          </Field>
+          <Field label="Sort">
+            <select
+              className={input}
+              value={sort}
+              onChange={(event) => setSort(event.target.value)}
+            >
+              <option value="priority">Priority</option>
+              <option value="createdAt">Newest first</option>
+              <option value="title">Title</option>
+            </select>
+          </Field>
+          <p role="status" className="pb-2 text-sm text-slate-400">
+            {loading
+              ? "Loading reports…"
+              : saving
+                ? "Saving…"
+                : `${visible.length} reports`}
+          </p>
+        </div>
+        {!loading && !issues.length && !error && (
+          <p className="rounded-xl border border-slate-700 p-8 text-center text-slate-400">
+            No reports yet. Use New report to add one.
+          </p>
+        )}
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          {columns.map((status) => (
+            <section
+              key={status}
+              aria-label={status}
+              onDragOver={(event) => {
+                if (admin) event.preventDefault();
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                if (!admin || saving) return;
+                const id = event.dataTransfer.getData("text/issue-id");
+                if (id)
+                  save(
+                    issues.map((issue) =>
+                      issue.id === id ? { ...issue, status } : issue,
+                    ),
+                  );
+              }}
+              className="min-h-40 rounded-xl border border-slate-800 bg-slate-900/50 p-3"
+            >
+              <h2 className="mb-4 flex justify-between gap-2 font-semibold">
+                {status}
+                <span className="text-slate-400">
+                  {visible.filter((issue) => issue.status === status).length}
+                </span>
+              </h2>
+              <div className="space-y-3">
+                {visible
+                  .filter((issue) => issue.status === status)
+                  .map((issue) => (
+                    <button
+                      key={issue.id}
+                      draggable={admin && !saving}
+                      onDragStart={(event) =>
+                        event.dataTransfer.setData("text/issue-id", issue.id)
+                      }
+                      onClick={() => {
+                        setIsNew(false);
+                        setComment("");
+                        setSelected(structuredClone(issue));
+                      }}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-800 p-3 text-left hover:border-cyan-500 focus-visible:outline-2 focus-visible:outline-cyan-400"
+                    >
+                      <span className="flex items-start justify-between gap-2 font-semibold">
+                        <span className="break-words">{issue.title}</span>
+                        <span className="text-xs text-cyan-300">
+                          {issue.priority}
+                        </span>
+                      </span>
+                      <span className="mt-2 block line-clamp-3 text-sm text-slate-300">
+                        {issue.description}
+                      </span>
+                      <span className="mt-3 flex flex-wrap gap-1">
+                        {issue.tags?.map((value) => (
+                          <span
+                            key={value}
+                            className="rounded bg-slate-700 px-1.5 py-0.5 text-xs"
+                          >
+                            {value}
+                          </span>
+                        ))}
+                      </span>
+                    </button>
+                  ))}
+              </div>
+            </section>
           ))}
         </div>
-
-        {/* Empty state helper */}
-        {issues.length === 0 && !loading && (
-          <div className="mt-10 mx-auto max-w-xl text-center text-slate-300">
-            <p className="text-lg">No issues loaded.</p>
-            <p className="mt-2">Use <strong>Import</strong> / <strong>Paste</strong> / <strong>From URL</strong> or click <strong>New</strong> to start.</p>
-          </div>
-        )}
-        {loading && (
-          <div className="mt-10 mx-auto max-w-xl text-center text-slate-400 text-sm">Loading issues…</div>
-        )}
-
-        {/* Raw JSON panel */}
-        {showJSON && (
-          <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="rounded-2xl ring-1 ring-slate-800 bg-slate-900 p-4">
-              <h3 className="font-semibold text-slate-200 mb-2">Raw JSON (editable)</h3>
-              <TextArea rows={18} value={rawJSON} onChange={(e)=>setRawJSON(e.target.value)} />
-              <div className="mt-3 flex gap-2">
-                <IconButton title="Apply JSON" onClick={applyRawJSON}>✅<span>Apply</span></IconButton>
-                <IconButton title="Pretty print" onClick={()=>setRawJSON(JSON.stringify(JSON.parse(rawJSON), null, 2))}>✨<span>Format</span></IconButton>
-              </div>
-            </div>
-            <div className="rounded-2xl ring-1 ring-slate-800 bg-slate-900 p-4">
-              <h3 className="font-semibold text-slate-200 mb-2">Schema hints</h3>
-              <pre className="text-xs text-slate-300 whitespace-pre-wrap">{`Accepts one of:
-- Issue[]
-- { issues: Issue[] }
-- { items: Issue[] }
-- { bugs: Issue[] }
-
-Issue fields: {
-  id: string,
-  title: string,
-  description?: string,
-  status: string,
-  priority?: "P0"|"P1"|"P2"|"P3",
-  assignee?: string,
-  tags?: string[],
-  createdAt?: ISO string,
-  updatedAt?: ISO string,
-  comments?: { id: string, author?: string, body: string, createdAt: ISO }[]
-}`}</pre>
-            </div>
-          </div>
-        )}
       </main>
-
-      {/* Edit modal */}
-      <Modal open={!!draft || !!selected} onClose={() => { if (draft) setDraft(null); else setSelected(null); }}>
-        {(draft || selected) && (() => { const current = draft || selected; const canEdit = draft ? true : (role==='maintainer' || current.createdByVisitor); return (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{draft ? 'New issue (unsaved)' : (canEdit ? 'Edit' : 'View') } #{current.id}</h2>
-              <div className="flex gap-2">
-                {draft ? (
-                  <>
-                    <IconButton title="Save" onClick={saveDraft}>💾<span>Save</span></IconButton>
-                    <IconButton title="Discard" onClick={() => setDraft(null)}>🗑️<span>Discard</span></IconButton>
-                    <IconButton title="Close" onClick={() => setDraft(null)}>✖️<span>Close</span></IconButton>
-                  </>
-                ) : (
-                  <>
-                    {(role==='maintainer' || current.createdByVisitor) && (
-                      <IconButton title="Delete" onClick={()=>deleteIssue(current.id)}>🗑️<span>Delete</span></IconButton>
-                    )}
-                    <IconButton title="Close" onClick={()=>setSelected(null)}>✖️<span>Close</span></IconButton>
-                  </>
-                )}
-              </div>
+      <Modal
+        error={error}
+        open={Boolean(selected)}
+        title={
+          isNew ? "New issue report" : admin ? "Edit issue" : "Issue details"
+        }
+        onClose={() => {
+          if (!saving) setSelected(null);
+        }}
+      >
+        {selected && (
+          <form onSubmit={saveIssue} className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <Field label="Title">
+                <input
+                  className={input}
+                  required
+                  maxLength={200}
+                  disabled={!admin && !isNew}
+                  value={selected.title}
+                  onChange={(event) => edit({ title: event.target.value })}
+                />
+              </Field>
             </div>
-            <div>
-              <label className="text-sm text-slate-600 dark:text-slate-300">Title</label>
-              <TextInput disabled={!canEdit} value={current.title} onChange={(e)=>updateIssue(current.id, { title: e.target.value })} />
+            <div className="sm:col-span-2">
+              <Field label="Description">
+                <textarea
+                  className={input}
+                  rows={5}
+                  maxLength={10000}
+                  disabled={!admin && !isNew}
+                  value={selected.description}
+                  onChange={(event) =>
+                    edit({ description: event.target.value })
+                  }
+                />
+              </Field>
             </div>
-            <div>
-              <label className="text-sm text-slate-600 dark:text-slate-300">Assignee</label>
-              <TextInput disabled={!canEdit} value={current.assignee||""} onChange={(e)=>updateIssue(current.id, { assignee: e.target.value })} />
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-sm text-slate-600 dark:text-slate-300">Description</label>
-              <TextArea disabled={!canEdit} rows={4} value={current.description||""} onChange={(e)=>updateIssue(current.id, { description: e.target.value })} />
-            </div>
-            <div>
-              <label className="text-sm text-slate-600 dark:text-slate-300">Status</label>
-              <Select value={current.status} onChange={(e)=>{ if(canEdit) updateIssue(current.id, { status: e.target.value }); }} options={allStatuses} className={!canEdit?'pointer-events-none opacity-60':''} />
-            </div>
-            <div>
-              <label className="text-sm text-slate-600 dark:text-slate-300">Priority</label>
-              <Select value={current.priority||"P2"} onChange={(e)=>{ if(canEdit) updateIssue(current.id, { priority: e.target.value }); }} options={["P0","P1","P2","P3"]} className={!canEdit?'pointer-events-none opacity-60':''} />
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-sm text-slate-600 dark:text-slate-300">Tags (comma separated)</label>
-              <TextInput disabled={!canEdit} value={(current.tags||[]).join(", ")} onChange={(e)=>updateIssue(current.id, { tags: e.target.value.split(",").map(s=>s.trim()).filter(Boolean) })} />
-            </div>
-            <div>
-              <label className="text-sm text-slate-600 dark:text-slate-300">Created</label>
-              <TextInput value={current.createdAt||""} onChange={(e)=>updateIssue(current.id, { createdAt: e.target.value })} />
-            </div>
-            <div>
-              <label className="text-sm text-slate-600 dark:text-slate-300">Updated</label>
-              <TextInput value={current.updatedAt||""} onChange={(e)=>updateIssue(current.id, { updatedAt: e.target.value })} />
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-sm text-slate-600 dark:text-slate-300">Comments</label>
-              <div className="space-y-2 max-h-40 overflow-auto pr-1">
-                {(current.comments||[]).map(c => (
-                  <div key={c.id} className="rounded-lg bg-slate-100 dark:bg-slate-800 ring-1 ring-slate-300 dark:ring-slate-700 p-2">
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mb-1">{c.author || "anon"} · {new Date(c.createdAt).toLocaleString()}</div>
-                    <div className="text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap">{c.body}</div>
-                  </div>
-                ))}
-              </div>
-              {canEdit && (
-                <div className="mt-2 flex gap-2">
-                  <TextInput placeholder="Add a comment…" onKeyDown={(e)=>{
-                    if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                      const body = e.currentTarget.value.trim();
-                      const c = { id: uid("c"), author: role==='maintainer'? 'maintainer':'' , body, createdAt: new Date().toISOString() };
-                      updateIssue(current.id, { comments: [...(current.comments||[]), c] });
-                      e.currentTarget.value = "";
+            {admin && (
+              <>
+                <Field label="Status">
+                  <select
+                    className={input}
+                    value={selected.status}
+                    onChange={(event) => edit({ status: event.target.value })}
+                  >
+                    {columns.map((value) => (
+                      <option key={value}>{value}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Priority">
+                  <select
+                    className={input}
+                    value={selected.priority || "P2"}
+                    onChange={(event) => edit({ priority: event.target.value })}
+                  >
+                    {priorities.map((value) => (
+                      <option key={value}>{value}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Assignee">
+                  <input
+                    className={input}
+                    maxLength={100}
+                    value={selected.assignee}
+                    onChange={(event) => edit({ assignee: event.target.value })}
+                  />
+                </Field>
+                <Field label="Tags, separated by commas">
+                  <input
+                    className={input}
+                    value={selected.tagsRaw ?? selected.tags.join(", ")}
+                    onChange={(event) =>
+                      edit({
+                        tagsRaw: event.target.value,
+                        tags: event.target.value
+                          .split(",")
+                          .map((value) => value.trim())
+                          .filter(Boolean),
+                      })
                     }
-                  }} />
-                  <span className="text-xs text-slate-400 self-center">Press Enter</span>
+                  />
+                </Field>
+              </>
+            )}
+            <div className="space-y-2 sm:col-span-2">
+              <h3 className="font-semibold">Comments</h3>
+              {selected.comments?.map((value) => (
+                <div key={value.id} className="rounded-lg bg-slate-800 p-3">
+                  <p className="text-xs text-slate-400">
+                    {value.author || "Maintainer"} ·{" "}
+                    {new Date(value.createdAt).toLocaleString()}
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap break-words text-sm">
+                    {value.body}
+                  </p>
+                </div>
+              ))}
+              {admin && (
+                <div className="flex gap-2">
+                  <input
+                    aria-label="New comment"
+                    className={input}
+                    value={comment}
+                    maxLength={5000}
+                    onChange={(event) => setComment(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className={button}
+                    onClick={() => {
+                      if (comment.trim()) {
+                        edit({
+                          comments: [
+                            ...selected.comments,
+                            {
+                              id: crypto.randomUUID(),
+                              author: account.name || "Maintainer",
+                              body: comment.trim(),
+                              createdAt: new Date().toISOString(),
+                            },
+                          ],
+                        });
+                        setComment("");
+                      }
+                    }}
+                  >
+                    Add
+                  </button>
                 </div>
               )}
             </div>
+            <p className="text-sm text-slate-400 sm:col-span-2">
+              Reports appear on the shared board.
+            </p>
+            {(admin || isNew) && (
+              <div className="flex gap-2 sm:col-span-2">
+                <button className={button} disabled={saving}>
+                  {saving ? "Saving…" : "Save report"}
+                </button>
+                {admin && !isNew && (
+                  <button
+                    type="button"
+                    className={button}
+                    disabled={saving}
+                    onClick={async () => {
+                      if (
+                        confirm("Delete this issue from the shared board?") &&
+                        (await save(
+                          issues.filter((issue) => issue.id !== selected.id),
+                        ))
+                      )
+                        setSelected(null);
+                    }}
+                  >
+                    Delete issue
+                  </button>
+                )}
+              </div>
+            )}
+          </form>
+        )}
+      </Modal>
+      <Modal
+        error={error}
+        open={loginOpen}
+        title="Maintainer sign in"
+        onClose={() => setLoginOpen(false)}
+      >
+        <form onSubmit={signIn} className="space-y-4">
+          <Field label="Administrator username">
+            <input
+              name="username"
+              className={input}
+              autoComplete="username"
+              required
+            />
+          </Field>
+          <Field label="Password or Discord code">
+            <input
+              name="password"
+              className={input}
+              type="password"
+              autoComplete="current-password"
+              required
+            />
+          </Field>
+          <button className={button} disabled={saving}>
+            Sign in
+          </button>
+        </form>
+      </Modal>
+      <Modal
+        error={error}
+        open={rawOpen && admin}
+        title="Import or edit issue JSON"
+        onClose={() => {
+          if (!saving) setRawOpen(false);
+        }}
+      >
+        <div className="space-y-4">
+          <Field label="Issue JSON">
+            <textarea
+              className={`${input} font-mono text-xs`}
+              rows={14}
+              value={raw}
+              onChange={(event) => setRaw(event.target.value)}
+            />
+          </Field>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className={button}
+              disabled={saving}
+              onClick={async () => {
+                try {
+                  if (await save(normalize(JSON.parse(raw)))) setRawOpen(false);
+                } catch (failure) {
+                  setError(failure.message);
+                }
+              }}
+            >
+              Apply JSON
+            </button>
+            <button
+              className={button}
+              onClick={() => {
+                try {
+                  setRaw(JSON.stringify(JSON.parse(raw), null, 2));
+                } catch {
+                  setError("The JSON is not valid.");
+                }
+              }}
+            >
+              Format JSON
+            </button>
+            <button
+              className={button}
+              onClick={() => importRef.current.click()}
+            >
+              Import file
+            </button>
+            <input
+              type="file"
+              aria-label="Import JSON file"
+              accept="application/json"
+              hidden
+              ref={importRef}
+              onChange={async (event) => {
+                const file = event.target.files?.[0];
+                if (file) await importJSON(await file.text());
+                event.target.value = "";
+              }}
+            />
           </div>
-        ); })()}
-      </Modal>
-      {/* Paste JSON modal */}
-      <Modal open={pasteOpen} onClose={()=>setPasteOpen(false)}>
-        <h3 className="text-lg font-semibold text-slate-100 mb-3">Paste JSON</h3>
-        <TextArea rows={12} placeholder="Paste Issue[] or { issues: Issue[] } here…" id="paste-area" />
-        <div className="mt-3 flex gap-2">
-          <IconButton title="Load" onClick={()=>{
-            const ta = document.getElementById("paste-area");
-            if (ta && "value" in ta) handlePasteJSON(ta.value);
-          }}>✅<span>Load</span></IconButton>
-          <IconButton title="Cancel" onClick={()=>setPasteOpen(false)}>✖️<span>Cancel</span></IconButton>
+          <Field label="Import from a public JSON URL">
+            <input
+              className={input}
+              type="url"
+              value={importURL}
+              onChange={(event) => setImportURL(event.target.value)}
+            />
+          </Field>
+          <button className={button} disabled={saving} onClick={importFromURL}>
+            Import URL
+          </button>
         </div>
       </Modal>
-
-      {/* URL modal */}
-      <Modal open={urlOpen} onClose={()=>setUrlOpen(false)}>
-        <h3 className="text-lg font-semibold text-slate-100 mb-3">Load JSON from URL</h3>
-        <TextInput ref={urlInputRef} placeholder="https://example.com/issues.json" />
-        <div className="mt-3 flex gap-2">
-          <IconButton title="Fetch" onClick={handleFetchURL}>🔗<span>Fetch</span></IconButton>
-          <IconButton title="Cancel" onClick={()=>setUrlOpen(false)}>✖️<span>Cancel</span></IconButton>
-        </div>
-      </Modal>
-
-      <footer className="mt-10 pb-10 text-center text-xs text-slate-500">
-        Built with ❤️ — everything stays in your browser.
-      </footer>
     </div>
   );
 }
